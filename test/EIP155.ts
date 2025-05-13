@@ -2,62 +2,142 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 
 import { ethers, expect, config } from "hardhat";
 
-import { BigNumber, providers } from "ethers";
+import { BigNumber, Transaction, Wallet, providers } from "ethers";
+
+interface HardhatNetworkConfig {
+  url: string;
+  chainId: number;
+  accounts: string[];
+}
 
 /**
  * BSC 는 EIP 1559 를 준수하지 않음
  */
-describe("EIP155", async () => {
-  // let operator: SignerWithAddress;
-  // let receiver: SignerWithAddress;
-  // let operatorAddress: string;
-  // let nativeBalance: BigNumber;
-  // let eip1559Receipt: providers.TransactionReceipt;
-  // let lagacyReceipt: providers.TransactionReceipt;
-  // before(async () => {
-  //   [operator, receiver] = await ethers.getSigners();
+describe("EIP155 ", async () => {
+  let operator: Wallet;
 
-  //   operatorAddress = operator.address;
-  //   nativeBalance = await operator.getBalance();
-  //   console.log("operatorAddress: ", operatorAddress);
-  //   console.log("balance: ", nativeBalance);
-  //   console.log("receiver: ", receiver.address);
-  //   console.log("balance: ", await receiver.getBalance());
-  // });
+  let bscEoA: Wallet;
+  let chainId: number;
+  let operatorAddress: string;
+  let nativeBalance: BigNumber;
+  let eip1559Receipt: providers.TransactionReceipt;
+  let lagacyReceipt: providers.TransactionReceipt;
+  let bscRPCProvider: providers.JsonRpcProvider;
+  let sepoliaRPCProvider: providers.JsonRpcProvider;
+  let bscChainId: number;
 
-  // it("create native transfer transaction ( type 1 )", async () => {
-  //   try {
-  //     const nativeTransferTx = await operator.sendTransaction({
-  //       to: receiver.address,
-  //       value: ethers.utils.parseEther("100"),
-  //     });
+  before(async () => {
+    // [operator, receiver] = await ethers.getSigners();
 
-  //     eip1559Receipt = await nativeTransferTx.wait();
+    const operatorKey = (config.networks?.sepolia as HardhatNetworkConfig)
+      ?.accounts[0];
+    const sepoliaRpcUrl = (config.networks?.sepolia as HardhatNetworkConfig)
+      .url;
 
-  //     expect(eip1559Receipt.type).to.equal(2);
-  //   } catch (e) {
-  //     console.log(e);
-  //   }
-  // });
+    sepoliaRPCProvider = new ethers.providers.JsonRpcProvider(sepoliaRpcUrl);
 
-  // it("create native transfer transaction ( type 2 / lagacy )", async () => {
-  //   try {
-  //     const nativeTransferTx = await operator.sendTransaction({
-  //       to: receiver.address,
-  //       value: ethers.utils.parseEther("100"),
-  //       gasPrice: await operator.provider?.getGasPrice(),
-  //     });
+    operator = new ethers.Wallet(operatorKey, sepoliaRPCProvider);
 
-  //     lagacyReceipt = await nativeTransferTx.wait();
+    console.log("operator:", operator);
 
-  //     expect(lagacyReceipt.type).to.equal(0);
-  //   } catch (e) {
-  //     console.log(e);
-  //   }
-  // });
+    const bscTestnetRpcUrl = (
+      config.networks?.bscTestnet as HardhatNetworkConfig
+    ).url;
 
-  // after(() => {
-  //   console.log("eip1559: \n", eip1559Receipt);
-  //   console.log("lagacy: \n", lagacyReceipt);
-  // });
+    console.log(`bscTestnetRpcUrl: `, bscTestnetRpcUrl);
+
+    operatorAddress = await operator.getAddress();
+    console.log("operatorAddress: ", operatorAddress);
+    nativeBalance = await sepoliaRPCProvider.getBalance(operatorAddress);
+    console.log("balance: ", nativeBalance);
+    chainId = await operator.getChainId();
+    console.log(`chainId: `, chainId);
+
+    bscRPCProvider = new ethers.providers.JsonRpcProvider(bscTestnetRpcUrl);
+
+    bscEoA = ethers.Wallet.createRandom().connect(bscRPCProvider);
+
+    bscChainId = await bscEoA.getChainId();
+    console.log(`bscChainId: `, bscChainId);
+    console.log("bscEoA: ", bscEoA.address);
+    console.log("balance: ", await bscEoA.getBalance());
+
+    console.log(
+      "------------------------- END OF BEFORE -------------------------",
+    );
+  });
+
+  it("EIP 155 Transaction ", async () => {
+    //
+    const operatorNonce = await operator.getTransactionCount();
+
+    console.log(`operatorNonce: `, operatorNonce);
+    const estimatedGas = await operator.estimateGas({
+      to: bscEoA.address,
+      value: ethers.utils.parseEther("0.1"),
+      chainId,
+      nonce: operatorNonce,
+    });
+
+    console.log(`estimatedGas: `, estimatedGas);
+    const originTx: providers.TransactionRequest = {
+      to: bscEoA.address,
+      value: ethers.utils.parseEther("0.1"),
+      chainId,
+      nonce: operatorNonce,
+      gasLimit: estimatedGas,
+      data: ethers.utils.toUtf8Bytes(""),
+    };
+
+    console.log("originTx:\n", originTx);
+    const signedTx = await operator.signTransaction(originTx);
+
+    const originTxObejct = ethers.utils.parseTransaction(signedTx);
+
+    console.log("originTxObejct:\n", originTxObejct);
+
+    const expected = chainId * 2 + 35;
+    const expected2 = chainId * 2 + 36;
+
+    console.log("expected: ", expected);
+    console.log("expected2: ", expected2);
+    expect(originTxObejct.v).to.be.oneOf([expected, expected2]);
+  });
+
+  it("Lagacy Transaction ", async () => {
+    //
+    const operatorNonce = await operator.getTransactionCount();
+
+    console.log(`operatorNonce: `, operatorNonce);
+    const estimatedGas = await operator.estimateGas({
+      to: bscEoA.address,
+      value: ethers.utils.parseEther("0.1"),
+      nonce: operatorNonce,
+    });
+
+    console.log(`estimatedGas: `, estimatedGas);
+    const originTx: providers.TransactionRequest = {
+      to: bscEoA.address,
+      value: ethers.utils.parseEther("0.1"),
+      nonce: operatorNonce,
+      gasLimit: estimatedGas,
+      data: ethers.utils.toUtf8Bytes(""),
+    };
+
+    console.log("originTx:\n", originTx);
+    const signedTx = await operator.signTransaction(originTx);
+
+    const originTxObejct = ethers.utils.parseTransaction(signedTx);
+
+    console.log("originTxObejct:\n", originTxObejct);
+
+    const expected = 27;
+    const expected2 = 28;
+
+    console.log("expected: ", expected);
+    console.log("expected2: ", expected2);
+    expect(originTxObejct.v).to.be.oneOf([expected, expected2]);
+  });
+
+  after(() => {});
 });
