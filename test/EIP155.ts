@@ -20,40 +20,34 @@ describe("EIP155 ", async () => {
   let chainId: number;
   let operatorAddress: string;
   let nativeBalance: BigNumber;
-  let eip1559Receipt: providers.TransactionReceipt;
-  let lagacyReceipt: providers.TransactionReceipt;
+  let eip155Tx: Transaction;
+  let lagacyTx: Transaction;
   let bscRPCProvider: providers.JsonRpcProvider;
   let sepoliaRPCProvider: providers.JsonRpcProvider;
   let bscChainId: number;
+  let eip155_v_values: number[];
+  let lagacy_v_values: number[];
 
   before(async () => {
     // [operator, receiver] = await ethers.getSigners();
 
     const operatorKey = (config.networks?.sepolia as HardhatNetworkConfig)
       ?.accounts[0];
-    const sepoliaRpcUrl = (config.networks?.sepolia as HardhatNetworkConfig)
-      .url;
-
-    sepoliaRPCProvider = new ethers.providers.JsonRpcProvider(sepoliaRpcUrl);
-
-    operator = new ethers.Wallet(operatorKey, sepoliaRPCProvider);
-
-    console.log("operator:", operator);
 
     const bscTestnetRpcUrl = (
       config.networks?.bscTestnet as HardhatNetworkConfig
     ).url;
-
+    bscRPCProvider = new ethers.providers.JsonRpcProvider(bscTestnetRpcUrl);
     console.log(`bscTestnetRpcUrl: `, bscTestnetRpcUrl);
+
+    operator = new ethers.Wallet(operatorKey, bscRPCProvider);
 
     operatorAddress = await operator.getAddress();
     console.log("operatorAddress: ", operatorAddress);
-    nativeBalance = await sepoliaRPCProvider.getBalance(operatorAddress);
+    nativeBalance = await operator.getBalance();
     console.log("balance: ", nativeBalance);
     chainId = await operator.getChainId();
     console.log(`chainId: `, chainId);
-
-    bscRPCProvider = new ethers.providers.JsonRpcProvider(bscTestnetRpcUrl);
 
     bscEoA = ethers.Wallet.createRandom().connect(bscRPCProvider);
 
@@ -71,7 +65,6 @@ describe("EIP155 ", async () => {
     //
     const operatorNonce = await operator.getTransactionCount();
 
-    console.log(`operatorNonce: `, operatorNonce);
     const estimatedGas = await operator.estimateGas({
       to: bscEoA.address,
       value: ethers.utils.parseEther("0.1"),
@@ -79,7 +72,6 @@ describe("EIP155 ", async () => {
       nonce: operatorNonce,
     });
 
-    console.log(`estimatedGas: `, estimatedGas);
     const originTx: providers.TransactionRequest = {
       to: bscEoA.address,
       value: ethers.utils.parseEther("0.1"),
@@ -89,33 +81,27 @@ describe("EIP155 ", async () => {
       data: ethers.utils.toUtf8Bytes(""),
     };
 
-    console.log("originTx:\n", originTx);
     const signedTx = await operator.signTransaction(originTx);
 
-    const originTxObejct = ethers.utils.parseTransaction(signedTx);
-
-    console.log("originTxObejct:\n", originTxObejct);
+    eip155Tx = ethers.utils.parseTransaction(signedTx);
 
     const expected = chainId * 2 + 35;
     const expected2 = chainId * 2 + 36;
+    eip155_v_values = [expected, expected2];
 
-    console.log("expected: ", expected);
-    console.log("expected2: ", expected2);
-    expect(originTxObejct.v).to.be.oneOf([expected, expected2]);
+    expect(eip155Tx.v).to.be.oneOf([expected, expected2]);
   });
 
   it("Lagacy Transaction ", async () => {
     //
     const operatorNonce = await operator.getTransactionCount();
 
-    console.log(`operatorNonce: `, operatorNonce);
     const estimatedGas = await operator.estimateGas({
       to: bscEoA.address,
       value: ethers.utils.parseEther("0.1"),
       nonce: operatorNonce,
     });
 
-    console.log(`estimatedGas: `, estimatedGas);
     const originTx: providers.TransactionRequest = {
       to: bscEoA.address,
       value: ethers.utils.parseEther("0.1"),
@@ -124,20 +110,21 @@ describe("EIP155 ", async () => {
       data: ethers.utils.toUtf8Bytes(""),
     };
 
-    console.log("originTx:\n", originTx);
     const signedTx = await operator.signTransaction(originTx);
 
-    const originTxObejct = ethers.utils.parseTransaction(signedTx);
-
-    console.log("originTxObejct:\n", originTxObejct);
+    lagacyTx = ethers.utils.parseTransaction(signedTx);
 
     const expected = 27;
     const expected2 = 28;
-
-    console.log("expected: ", expected);
-    console.log("expected2: ", expected2);
-    expect(originTxObejct.v).to.be.oneOf([expected, expected2]);
+    lagacy_v_values = [expected, expected2];
+    expect(lagacyTx.v).to.be.oneOf([expected, expected2]);
   });
 
-  after(() => {});
+  after(() => {
+    console.log(`EIP 155 Tx : \n`, eip155Tx);
+    console.log(`EIP 155 V : `, eip155_v_values);
+
+    console.log(`Lagacy V : \n`, lagacyTx);
+    console.log(`Lagacy V : \n`, lagacy_v_values);
+  });
 });

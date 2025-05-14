@@ -34,12 +34,12 @@ const config: HardhatUserConfig = {
     },
     sepolia: {
       chainId: 11155111,
-      url: `https://weathered-necessary-needle.ethereum-sepolia.quiknode.pro/1390196a64684bfaa3842b72a6bed8d09ab745ab/`,
+      url: `https://rpc.ankr.com/eth_sepolia`,
       accounts: [process.env.OPERATOR_KEY || ""],
     },
     bscTestnet: {
       chainId: 97,
-      url: `https://quiet-snowy-meme.bsc-testnet.quiknode.pro/fef9d6af79636a0227dc45c078a28c304348fed9/`,
+      url: `https://wild-still-forest.bsc-testnet.quiknode.pro/6cd50ba1030e42b96dd26f107f68a3e6cef34815/`,
       accounts: [process.env.OPERATOR_KEY || ""],
     },
     avalancheFuji: {
